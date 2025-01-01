@@ -1,0 +1,15 @@
+{
+    "canisters": {
+        "skill-swap": {
+            "type": "azle",
+            "main": "src/index.ts",
+            "custom": {
+                "experimental": true
+            },
+            "declarations": {
+                "output": "test/dfx_generated/skill-swap",
+                "node_compatibility": true
+            }
+        }
+    }
+}
