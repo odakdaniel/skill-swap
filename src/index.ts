@@ -256,85 +256,112 @@ export default Canister({
 
   // Match Management
   acceptOffer: update(
-    [AcceptOfferPayload],
-    Result(MatchResponse, Errors),
-    (payload) => {
-      const caller = ic.caller();
-      const offer = offerStorage.get(payload.offerId);
+  [AcceptOfferPayload],
+  Result(MatchResponse, Errors),
+  (payload) => {
+    const caller = ic.caller();
 
-      if (!offer) {
-        return Err({ OfferNotFound: "Offer not found" });
-      }
-
-      if (offer.status !== "active") {
-        return Err({ OfferAlreadyMatched: "This offer is no longer active" });
-      }
-
-      const match: Match = {
-        id: generateId(),
-        offererId: offer.teacher,
-        accepterId: caller,
-        skillOffererId: payload.offerId,
-        status: "ongoing",
-        rating: 0n,
-        feedback: "",
-        createdAt: ic.time(),
-      };
-
-      // Update offer status
-      const updatedOffer = {
-        ...offer,
-        status: "matched",
-      };
-
-      matchStorage.insert(match.id, match);
-      offerStorage.insert(payload.offerId, updatedOffer);
-
-      return Ok({
-        message: `Offer accepted successfully`,
-        match,
-      });
+    // Validate if offerId is a valid Principal
+    if (!Principal.isValid(payload.offerId.toText())) {
+      return Err({ OfferNotFound: "Invalid offer ID" });
     }
-  ),
+
+    const offer = offerStorage.get(payload.offerId);
+
+    if (!offer) {
+      return Err({ OfferNotFound: "Offer not found" });
+    }
+
+    if (offer.status !== "active") {
+      return Err({ OfferAlreadyMatched: "This offer is no longer active" });
+    }
+
+    // Prevent duplicate matches for the same offer
+    const existingMatch = Array.from(matchStorage.values()).find(
+      (match) => match.skillOffererId === payload.offerId && match.accepterId === caller
+    );
+    if (existingMatch) {
+      return Err({ OfferAlreadyMatched: "You have already accepted this offer" });
+    }
+
+    const match: Match = {
+      id: generateId(),
+      offererId: offer.teacher,
+      accepterId: caller,
+      skillOffererId: payload.offerId,
+      status: "ongoing",
+      rating: 0n,
+      feedback: "",
+      createdAt: ic.time(),
+    };
+
+    // Update offer status
+    const updatedOffer = {
+      ...offer,
+      status: "matched",
+    };
+
+    matchStorage.insert(match.id, match);
+    offerStorage.insert(payload.offerId, updatedOffer);
+
+    return Ok({
+      message: `Offer accepted successfully`,
+      match,
+    });
+  }
+),
+
 
   // Completion and Rating
   completeLesson: update(
-    [CompleteLessonPayload],
-    Result(text, Errors),
-    (payload) => {
-      const caller = ic.caller();
-      const match = matchStorage.get(payload.matchId);
+  [CompleteLessonPayload],
+  Result(text, Errors),
+  (payload) => {
+    const caller = ic.caller();
 
-      if (!match) {
-        return Err({ MatchNotFound: "Match not found" });
-      }
-
-      if (payload.rating < 1 || payload.rating > 5) {
-        return Err({ InvalidRating: "Rating must be between 1 and 5" });
-      }
-
-      const updatedMatch = {
-        ...match,
-        status: "completed",
-        rating: payload.rating,
-        feedback: payload.feedback,
-      };
-
-      // Update user stats
-      const teacher = userStorage.get(match.offererId);
-      if (teacher) {
-        const updatedTeacher = {
-          ...teacher,
-          rating: (teacher.rating + payload.rating) / 2n,
-          completedExchanges: teacher.completedExchanges + 1n,
-        };
-        userStorage.insert(match.offererId, updatedTeacher);
-      }
-
-      matchStorage.insert(payload.matchId, updatedMatch);
-      return Ok("Lesson completed and rated successfully");
+    // Validate if matchId is a valid Principal
+    if (!Principal.isValid(payload.matchId.toText())) {
+      return Err({ MatchNotFound: "Invalid match ID" });
     }
-  ),
+
+    const match = matchStorage.get(payload.matchId);
+
+    if (!match) {
+      return Err({ MatchNotFound: "Match not found" });
+    }
+
+    if (payload.rating < 1 || payload.rating > 5) {
+      return Err({ InvalidRating: "Rating must be between 1 and 5" });
+    }
+
+    if (payload.feedback.length > 500) {
+      return Err({ InvalidFeedback: "Feedback must be under 500 characters" });
+    }
+
+    const updatedMatch = {
+      ...match,
+      status: "completed",
+      rating: payload.rating,
+      feedback: payload.feedback,
+    };
+
+    // Update user stats
+    const teacher = userStorage.get(match.offererId);
+    if (teacher) {
+      const updatedTeacher = {
+        ...teacher,
+        rating: (teacher.rating * teacher.completedExchanges + payload.rating) /
+          (teacher.completedExchanges + 1n),
+        completedExchanges: teacher.completedExchanges + 1n,
+      };
+      userStorage.insert(match.offererId, updatedTeacher);
+    }
+
+    matchStorage.insert(payload.matchId, updatedMatch);
+    return Ok("Lesson completed and rated successfully");
+  }
+),
+
 
   // Queries
   getActiveOffers: query([], Vec(SkillOffer), () => {
@@ -342,11 +369,20 @@ export default Canister({
   }),
 
   getUserProfile: query([Principal], Result(User, Errors), (userId) => {
-    const user = userStorage.get(userId);
-    if (!user) {
-      return Err({ UserNotFound: "User not found" });
-    }
-    return Ok(user);
+  // Validate if userId is a valid Principal
+  if (!Principal.isValid(userId.toText())) {
+    return Err({ UserNotFound: "Invalid user ID" });
+  }
+
+  const user = userStorage.get(userId);
+
+  if (!user) {
+    return Err({ UserNotFound: "User not found" });
+  }
+
+  return Ok(user);
+}),
+
   }),
 
   getUserMatches: query([Principal], Vec(Match), (userId) => {
@@ -360,8 +396,10 @@ export default Canister({
 
 // Helper function
 function generateId(): Principal {
-  const randomBytes = new Array(29)
-    .fill(0)
-    .map((_) => Math.floor(Math.random() * 256));
-  return Principal.fromUint8Array(Uint8Array.from(randomBytes));
+  const time = BigInt(ic.time()).toString(); // Get the current time as a BigInt and convert it to a string
+  const caller = ic.caller().toText(); // Get the caller's Principal as a string
+  const uniqueId = `${caller}-${time}`; // Combine the caller and time to create a unique ID
+  return Principal.fromText(uniqueId); // Convert the unique ID back to a Principal
+}
+
 }
