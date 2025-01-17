@@ -27,6 +27,7 @@ export interface _SERVICE {
           { 'OfferAlreadyMatched' : string } |
           { 'MatchNotFound' : string } |
           { 'InvalidSkillLevel' : string } |
+          { 'InternalError' : string } |
           { 'UnauthorizedAction' : string } |
           { 'UserNotFound' : string }
       }
@@ -58,6 +59,7 @@ export interface _SERVICE {
           { 'OfferAlreadyMatched' : string } |
           { 'MatchNotFound' : string } |
           { 'InvalidSkillLevel' : string } |
+          { 'InternalError' : string } |
           { 'UnauthorizedAction' : string } |
           { 'UserNotFound' : string }
       }
@@ -72,6 +74,7 @@ export interface _SERVICE {
           { 'OfferAlreadyMatched' : string } |
           { 'MatchNotFound' : string } |
           { 'InvalidSkillLevel' : string } |
+          { 'InternalError' : string } |
           { 'UnauthorizedAction' : string } |
           { 'UserNotFound' : string }
       }
@@ -119,6 +122,7 @@ export interface _SERVICE {
           { 'OfferAlreadyMatched' : string } |
           { 'MatchNotFound' : string } |
           { 'InvalidSkillLevel' : string } |
+          { 'InternalError' : string } |
           { 'UnauthorizedAction' : string } |
           { 'UserNotFound' : string }
       }
@@ -152,6 +156,7 @@ export interface _SERVICE {
           { 'OfferAlreadyMatched' : string } |
           { 'MatchNotFound' : string } |
           { 'InvalidSkillLevel' : string } |
+          { 'InternalError' : string } |
           { 'UnauthorizedAction' : string } |
           { 'UserNotFound' : string }
       }
@@ -220,6 +225,7 @@ export interface _SERVICE {
           { 'OfferAlreadyMatched' : string } |
           { 'MatchNotFound' : string } |
           { 'InvalidSkillLevel' : string } |
+          { 'InternalError' : string } |
           { 'UnauthorizedAction' : string } |
           { 'UserNotFound' : string }
       }

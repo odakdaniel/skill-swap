@@ -1,7 +1,19 @@
 service : {
   acceptOffer : (record { offerId : principal }) -> (
       variant {
-        Ok : text;
+        Ok : record {
+          match : record {
+            id : principal;
+            status : text;
+            offererId : principal;
+            createdAt : nat64;
+            feedback : text;
+            rating : nat64;
+            accepterId : principal;
+            skillOffererId : principal;
+          };
+          message : text;
+        };
         Err : variant {
           InvalidRating : text;
           UsernameTaken : text;
@@ -9,6 +21,7 @@ service : {
           OfferAlreadyMatched : text;
           MatchNotFound : text;
           InvalidSkillLevel : text;
+          InternalError : text;
           UnauthorizedAction : text;
           UserNotFound : text;
         };
@@ -23,7 +36,15 @@ service : {
       },
     ) -> (
       variant {
-        Ok : text;
+        Ok : record {
+          skill : record {
+            experienceLevel : text;
+            name : text;
+            description : text;
+            category : text;
+          };
+          message : text;
+        };
         Err : variant {
           InvalidRating : text;
           UsernameTaken : text;
@@ -31,6 +52,7 @@ service : {
           OfferAlreadyMatched : text;
           MatchNotFound : text;
           InvalidSkillLevel : text;
+          InternalError : text;
           UnauthorizedAction : text;
           UserNotFound : text;
         };
@@ -48,6 +70,7 @@ service : {
           OfferAlreadyMatched : text;
           MatchNotFound : text;
           InvalidSkillLevel : text;
+          InternalError : text;
           UnauthorizedAction : text;
           UserNotFound : text;
         };
@@ -66,7 +89,27 @@ service : {
       },
     ) -> (
       variant {
-        Ok : text;
+        Ok : record {
+          offer : record {
+            id : principal;
+            status : text;
+            createdAt : nat64;
+            teacher : principal;
+            skillWanted : record {
+              experienceLevel : text;
+              name : text;
+              description : text;
+              category : text;
+            };
+            skillOffered : record {
+              experienceLevel : text;
+              name : text;
+              description : text;
+              category : text;
+            };
+          };
+          message : text;
+        };
         Err : variant {
           InvalidRating : text;
           UsernameTaken : text;
@@ -74,6 +117,7 @@ service : {
           OfferAlreadyMatched : text;
           MatchNotFound : text;
           InvalidSkillLevel : text;
+          InternalError : text;
           UnauthorizedAction : text;
           UserNotFound : text;
         };
@@ -81,7 +125,22 @@ service : {
     );
   createUser : (record { username : text }) -> (
       variant {
-        Ok : text;
+        Ok : record {
+          user : record {
+            id : principal;
+            username : text;
+            dateJoined : nat64;
+            rating : nat64;
+            completedExchanges : nat64;
+            skills : vec record {
+              experienceLevel : text;
+              name : text;
+              description : text;
+              category : text;
+            };
+          };
+          message : text;
+        };
         Err : variant {
           InvalidRating : text;
           UsernameTaken : text;
@@ -89,6 +148,7 @@ service : {
           OfferAlreadyMatched : text;
           MatchNotFound : text;
           InvalidSkillLevel : text;
+          InternalError : text;
           UnauthorizedAction : text;
           UserNotFound : text;
         };
@@ -148,6 +208,7 @@ service : {
           OfferAlreadyMatched : text;
           MatchNotFound : text;
           InvalidSkillLevel : text;
+          InternalError : text;
           UnauthorizedAction : text;
           UserNotFound : text;
         };

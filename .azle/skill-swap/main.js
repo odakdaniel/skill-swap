@@ -30456,14 +30456,14 @@ function Result(ok, err3) {
   return new AzleResult(ok, err3);
 }
 ((Result3) => {
-  function Ok2(value) {
+  function Ok3(value) {
     return { Ok: value };
   }
-  Result3.Ok = Ok2;
-  function Err2(value) {
+  Result3.Ok = Ok3;
+  function Err3(value) {
     return { Err: value };
   }
-  Result3.Err = Err2;
+  Result3.Err = Err3;
 })(Result || (Result = {}));
 function Ok(value) {
   return { Ok: value };
@@ -56101,6 +56101,62 @@ var src_exports = {};
 __export(src_exports, {
   default: () => src_default
 });
+
+// src/storages/storage.ts
+var userStorage = StableBTreeMap(0);
+var offerStorage = StableBTreeMap(1);
+var matchStorage = StableBTreeMap(2);
+
+// src/controllers/UserController.ts
+var UserController = class {
+};
+UserController.createUser = (payload) => {
+  try {
+    const caller3 = ic.caller();
+    const existingUser = Array.from(userStorage.values()).find(
+      (user) => user.username === payload.username
+    );
+    if (existingUser) {
+      return Err({
+        UsernameTaken: `Username ${payload.username} is already taken`
+      });
+    }
+    const newUser = {
+      id: caller3,
+      username: payload.username,
+      skills: [],
+      rating: 0n,
+      completedExchanges: 0n,
+      dateJoined: ic.time()
+    };
+    userStorage.insert(caller3, newUser);
+    return Ok({
+      message: `User ${payload.username} created successfully`,
+      user: newUser
+    });
+  } catch (error2) {
+    return Err({ InternalError: `Error occured ${error2.message}` });
+  }
+};
+UserController.getUserProfile = (userId) => {
+  try {
+    const user = userStorage.get(userId);
+    if (!user) {
+      return Err({ UserNotFound: "User not found" });
+    }
+    return Ok(user);
+  } catch (error2) {
+    return Err({ InternalError: `Error occured ${error2.message}` });
+  }
+};
+UserController.getUserMatches = (userId) => {
+  return matchStorage.values().filter(
+    (match) => match.offererId === userId || match.accepterId === userId
+  );
+};
+var UserController_default = UserController;
+
+// src/datatypes/dataType.ts
 var Skill = Record2({
   name: text,
   category: text,
@@ -56187,39 +56243,170 @@ var Errors = Variant2({
   UsernameTaken: text,
   UnauthorizedAction: text,
   OfferAlreadyMatched: text,
-  InvalidSkillLevel: text
+  InvalidSkillLevel: text,
+  InternalError: text
 });
-var userStorage = StableBTreeMap(0);
-var offerStorage = StableBTreeMap(1);
-var matchStorage = StableBTreeMap(2);
+
+// src/utils/generateId.ts
+function generateId() {
+  const randomBytes4 = new Array(29).fill(0).map((_) => Math.floor(Math.random() * 256));
+  return Principal3.fromUint8Array(Uint8Array.from(randomBytes4));
+}
+
+// src/controllers/OfferController.ts
+var OfferController = class {
+};
+OfferController.createOffer = (payload) => {
+  try {
+    const caller3 = ic.caller();
+    const user = userStorage.get(caller3);
+    if (!user) {
+      return Err({ UserNotFound: "User not found" });
+    }
+    const skillOffered = {
+      name: payload.skillOfferedName,
+      category: payload.skillOfferedCategory,
+      experienceLevel: payload.skillOfferedLevel,
+      description: payload.skillOfferedDescription
+    };
+    const skillWanted = {
+      name: payload.skillWantedName,
+      category: payload.skillWantedCategory,
+      experienceLevel: payload.skillWantedLevel,
+      description: payload.skillWantedDescription
+    };
+    const newOffer = {
+      id: generateId(),
+      teacher: caller3,
+      skillOffered,
+      skillWanted,
+      status: "active",
+      createdAt: ic.time()
+    };
+    offerStorage.insert(newOffer.id, newOffer);
+    return Ok({
+      message: `Offer created successfully`,
+      offer: newOffer
+    });
+  } catch (error2) {
+    return Err({ InternalError: `Error occured ${error2.message}` });
+  }
+};
+OfferController.acceptOffer = (payload) => {
+  try {
+    const caller3 = ic.caller();
+    const offer = offerStorage.get(payload.offerId);
+    if (!offer) {
+      return Err({ OfferNotFound: "Offer not found" });
+    }
+    if (offer.status !== "active") {
+      return Err({ OfferAlreadyMatched: "This offer is no longer active" });
+    }
+    const match = {
+      id: generateId(),
+      offererId: offer.teacher,
+      accepterId: caller3,
+      skillOffererId: payload.offerId,
+      status: "ongoing",
+      rating: 0n,
+      feedback: "",
+      createdAt: ic.time()
+    };
+    const updatedOffer = {
+      ...offer,
+      status: "matched"
+    };
+    matchStorage.insert(match.id, match);
+    offerStorage.insert(payload.offerId, updatedOffer);
+    return Ok({
+      message: `Offer accepted successfully`,
+      match
+    });
+  } catch (error2) {
+    return Err({ InternalError: `Error occured ${error2.message}` });
+  }
+};
+OfferController.getActiveOffers = () => {
+  return offerStorage.values().filter((offer) => offer.status === "active");
+};
+var OfferController_default = OfferController;
+
+// src/controllers/SkillController.ts
+var SkillController = class {
+};
+SkillController.addSkill = (payload) => {
+  try {
+    const caller3 = ic.caller();
+    const user = userStorage.get(caller3);
+    if (!user) {
+      return Err({ UserNotFound: "User not found" });
+    }
+    const validLevels = ["beginner", "intermediate", "expert"];
+    if (!validLevels.includes(payload.experienceLevel.toLowerCase())) {
+      return Err({
+        InvalidSkillLevel: "Invalid skill level. Use: beginner, intermediate, or expert"
+      });
+    }
+    const newSkill = {
+      name: payload.name,
+      category: payload.category,
+      experienceLevel: payload.experienceLevel.toLowerCase(),
+      description: payload.description
+    };
+    const updatedUser = {
+      ...user,
+      skills: [...user.skills, newSkill]
+    };
+    userStorage.insert(caller3, updatedUser);
+    return Ok({
+      message: `Skill ${payload.name} added successfully`,
+      skill: newSkill
+    });
+  } catch (error2) {
+    return Err({ InternalError: `Error occured ${error2.message}` });
+  }
+};
+SkillController.completeLesson = (payload) => {
+  try {
+    const caller3 = ic.caller();
+    const match = matchStorage.get(payload.matchId);
+    if (!match) {
+      return Err({ MatchNotFound: "Match not found" });
+    }
+    if (payload.rating < 1 || payload.rating > 5) {
+      return Err({ InvalidRating: "Rating must be between 1 and 5" });
+    }
+    const updatedMatch = {
+      ...match,
+      status: "completed",
+      rating: payload.rating,
+      feedback: payload.feedback
+    };
+    const teacher = userStorage.get(match.offererId);
+    if (teacher) {
+      const updatedTeacher = {
+        ...teacher,
+        rating: (teacher.rating + payload.rating) / 2n,
+        completedExchanges: teacher.completedExchanges + 1n
+      };
+      userStorage.insert(match.offererId, updatedTeacher);
+    }
+    matchStorage.insert(payload.matchId, updatedMatch);
+    return Ok("Lesson completed and rated successfully");
+  } catch (error2) {
+    return Err({ InternalError: `Error occured ${error2.message}` });
+  }
+};
+var SkillController_default = SkillController;
+
+// src/index.ts
 var src_default = Canister({
   // User Management
   createUser: update2(
     [CreateUserPayload],
     Result(CreateUserResponse, Errors),
     (payload) => {
-      const caller3 = ic.caller();
-      const existingUser = Array.from(userStorage.values()).find(
-        (user) => user.username === payload.username
-      );
-      if (existingUser) {
-        return Err({
-          UsernameTaken: `Username ${payload.username} is already taken`
-        });
-      }
-      const newUser = {
-        id: caller3,
-        username: payload.username,
-        skills: [],
-        rating: 0n,
-        completedExchanges: 0n,
-        dateJoined: ic.time()
-      };
-      userStorage.insert(caller3, newUser);
-      return Ok({
-        message: `User ${payload.username} created successfully`,
-        user: newUser
-      });
+      return UserController_default.createUser(payload);
     }
   ),
   // Skill Management
@@ -56227,32 +56414,7 @@ var src_default = Canister({
     [AddSkillPayload],
     Result(SkillResponse, Errors),
     (payload) => {
-      const caller3 = ic.caller();
-      const user = userStorage.get(caller3);
-      if (!user) {
-        return Err({ UserNotFound: "User not found" });
-      }
-      const validLevels = ["beginner", "intermediate", "expert"];
-      if (!validLevels.includes(payload.experienceLevel.toLowerCase())) {
-        return Err({
-          InvalidSkillLevel: "Invalid skill level. Use: beginner, intermediate, or expert"
-        });
-      }
-      const newSkill = {
-        name: payload.name,
-        category: payload.category,
-        experienceLevel: payload.experienceLevel.toLowerCase(),
-        description: payload.description
-      };
-      const updatedUser = {
-        ...user,
-        skills: [...user.skills, newSkill]
-      };
-      userStorage.insert(caller3, updatedUser);
-      return Ok({
-        message: `Skill ${payload.name} added successfully`,
-        skill: newSkill
-      });
+      return SkillController_default.addSkill(payload);
     }
   ),
   // Offer Management
@@ -56260,36 +56422,7 @@ var src_default = Canister({
     [CreateOfferPayload],
     Result(CreateOfferResponse, Errors),
     (payload) => {
-      const caller3 = ic.caller();
-      const user = userStorage.get(caller3);
-      if (!user) {
-        return Err({ UserNotFound: "User not found" });
-      }
-      const skillOffered = {
-        name: payload.skillOfferedName,
-        category: payload.skillOfferedCategory,
-        experienceLevel: payload.skillOfferedLevel,
-        description: payload.skillOfferedDescription
-      };
-      const skillWanted = {
-        name: payload.skillWantedName,
-        category: payload.skillWantedCategory,
-        experienceLevel: payload.skillWantedLevel,
-        description: payload.skillWantedDescription
-      };
-      const newOffer = {
-        id: generateId(),
-        teacher: caller3,
-        skillOffered,
-        skillWanted,
-        status: "active",
-        createdAt: ic.time()
-      };
-      offerStorage.insert(newOffer.id, newOffer);
-      return Ok({
-        message: `Offer created successfully`,
-        offer: newOffer
-      });
+      return OfferController_default.createOffer(payload);
     }
   ),
   // Match Management
@@ -56297,34 +56430,7 @@ var src_default = Canister({
     [AcceptOfferPayload],
     Result(MatchResponse, Errors),
     (payload) => {
-      const caller3 = ic.caller();
-      const offer = offerStorage.get(payload.offerId);
-      if (!offer) {
-        return Err({ OfferNotFound: "Offer not found" });
-      }
-      if (offer.status !== "active") {
-        return Err({ OfferAlreadyMatched: "This offer is no longer active" });
-      }
-      const match = {
-        id: generateId(),
-        offererId: offer.teacher,
-        accepterId: caller3,
-        skillOffererId: payload.offerId,
-        status: "ongoing",
-        rating: 0n,
-        feedback: "",
-        createdAt: ic.time()
-      };
-      const updatedOffer = {
-        ...offer,
-        status: "matched"
-      };
-      matchStorage.insert(match.id, match);
-      offerStorage.insert(payload.offerId, updatedOffer);
-      return Ok({
-        message: `Offer accepted successfully`,
-        match
-      });
+      return OfferController_default.acceptOffer(payload);
     }
   ),
   // Completion and Rating
@@ -56332,54 +56438,20 @@ var src_default = Canister({
     [CompleteLessonPayload],
     Result(text, Errors),
     (payload) => {
-      const caller3 = ic.caller();
-      const match = matchStorage.get(payload.matchId);
-      if (!match) {
-        return Err({ MatchNotFound: "Match not found" });
-      }
-      if (payload.rating < 1 || payload.rating > 5) {
-        return Err({ InvalidRating: "Rating must be between 1 and 5" });
-      }
-      const updatedMatch = {
-        ...match,
-        status: "completed",
-        rating: payload.rating,
-        feedback: payload.feedback
-      };
-      const teacher = userStorage.get(match.offererId);
-      if (teacher) {
-        const updatedTeacher = {
-          ...teacher,
-          rating: (teacher.rating + payload.rating) / 2n,
-          completedExchanges: teacher.completedExchanges + 1n
-        };
-        userStorage.insert(match.offererId, updatedTeacher);
-      }
-      matchStorage.insert(payload.matchId, updatedMatch);
-      return Ok("Lesson completed and rated successfully");
+      return SkillController_default.completeLesson(payload);
     }
   ),
   // Queries
   getActiveOffers: query2([], Vec2(SkillOffer), () => {
-    return offerStorage.values().filter((offer) => offer.status === "active");
+    return OfferController_default.getActiveOffers();
   }),
   getUserProfile: query2([Principal3], Result(User, Errors), (userId) => {
-    const user = userStorage.get(userId);
-    if (!user) {
-      return Err({ UserNotFound: "User not found" });
-    }
-    return Ok(user);
+    return UserController_default.getUserProfile(userId);
   }),
   getUserMatches: query2([Principal3], Vec2(Match), (userId) => {
-    return matchStorage.values().filter(
-      (match) => match.offererId === userId || match.accepterId === userId
-    );
+    return UserController_default.getUserMatches(userId);
   })
 });
-function generateId() {
-  const randomBytes4 = new Array(29).fill(0).map((_) => Math.floor(Math.random() * 256));
-  return Principal3.fromUint8Array(Uint8Array.from(randomBytes4));
-}
 
 // <stdin>
 ethers_exports.FetchRequest.registerGetUrl(ethersGetUrl);
